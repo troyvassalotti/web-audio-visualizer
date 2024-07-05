@@ -46,7 +46,6 @@ export default class BumpinThat extends LitElement {
     }
 
     canvas {
-      aspect-ratio: 16/9;
       inline-size: 100%;
     }
   `;
@@ -64,7 +63,7 @@ export default class BumpinThat extends LitElement {
   }
 
   static makeCanvasWidth() {
-    return window.innerWidth / 2;
+    return window.innerWidth;
   }
 
   static makeCanvasHeight() {
@@ -78,6 +77,9 @@ export default class BumpinThat extends LitElement {
     this.analyzer = this.audioCtx.createAnalyser();
     this.audioSource.connect(this.analyzer);
     this.analyzer.connect(this.audioCtx.destination);
+    // Not setting this to 128 makes the RGB calculations off.
+    // Need to redo math for how to properly get red, green, and blue if we want 1024.
+    this.analyzer.fftSize = 128;
     this.bufferLength = this.analyzer.frequencyBinCount;
     this.dataArray = new Uint8Array(this.bufferLength);
   }
@@ -94,6 +96,11 @@ export default class BumpinThat extends LitElement {
   firstUpdated() {
     this.init();
     this.animate();
+  }
+
+  disconnectedCallback() {
+    this.worker.terminate();
+    super.disconnectedCallback();
   }
 
   render() {
