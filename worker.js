@@ -1,5 +1,12 @@
+import cache from "./lib/cache.js";
+import makeRGB from "./lib/makeRGB.js";
+import iteratinator from "./lib/iterators.js";
+
 class BumpinThatController {
   #canvas;
+  #ctx;
+  #visualizerType;
+  #bufferLength;
 
   get canvas() {
     return this.#canvas;
@@ -9,37 +16,64 @@ class BumpinThatController {
     this.#canvas = value;
   }
 
-  static makeBarColors(indexNumber, barHeight) {
-    return {
-      red: (indexNumber * barHeight) / 10,
-      green: indexNumber * 4,
-      blue: barHeight / 4 - 12,
-    };
+  get ctx() {
+    return this.#ctx;
   }
 
-  drawVisualizer({ bufferLength, dataArray }) {
-    const ctx = this.canvas.getContext("2d");
-    const barWidth = this.canvas.width / 2 / bufferLength;
-    const iterator = new Array(bufferLength).fill(0);
+  set ctx(value) {
+    this.#ctx = value;
+  }
+
+  get visualizerType() {
+    return this.#visualizerType;
+  }
+
+  set visualizerType(value) {
+    this.#visualizerType = value;
+  }
+
+  get bufferLength() {
+    return this.#bufferLength;
+  }
+
+  set bufferLength(value) {
+    this.#bufferLength = value;
+  }
+
+  get barWidth() {
+    return cache(this, "_barWidth", () =>
+      this.visualizerType === "split"
+        ? this.canvas.width / 2 / this.bufferLength
+        : this.canvas.width / this.bufferLength,
+    );
+  }
+
+  clear() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  drawVisualizer({ dataArray }) {
+    const ctx = this.ctx;
+    const barWidth = this.barWidth;
+    const bufferLength = this.bufferLength;
+    const iterator = iteratinator(bufferLength);
 
     let barHeight;
     let firstX = 0;
     let secondX = bufferLength * barWidth;
 
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.clear();
 
     iterator.forEach((_number, i) => {
       barHeight = dataArray[i];
 
-      const { red, green, blue } = BumpinThatController.makeBarColors(
-        i,
-        barHeight,
-      );
+      const fill = makeRGB(i, barHeight);
 
-      ctx.fillStyle = `rgb(${red}, ${green}, ${blue})`;
-
+      ctx.fillStyle = fill;
       ctx.fillRect(
-        this.canvas.width / 2 - firstX,
+        this.visualizerType === "split"
+          ? this.canvas.width / 2 - firstX
+          : firstX,
         this.canvas.height - barHeight,
         barWidth,
         barHeight,
@@ -47,14 +81,16 @@ class BumpinThatController {
 
       firstX += barWidth;
 
-      ctx.fillRect(
-        secondX,
-        this.canvas.height - barHeight,
-        barWidth,
-        barHeight,
-      );
+      if (this.visualizerType === "split") {
+        ctx.fillRect(
+          secondX,
+          this.canvas.height - barHeight,
+          barWidth,
+          barHeight,
+        );
 
-      secondX += barWidth;
+        secondX += barWidth;
+      }
     });
   }
 }
@@ -62,11 +98,15 @@ class BumpinThatController {
 const Bumpin = new BumpinThatController();
 
 onmessage = function (e) {
-  const { bufferLength, dataArray, canvas } = e.data;
+  const { bufferLength, dataArray, canvas, visual } = e.data;
+
+  Bumpin.bufferLength = bufferLength;
+  Bumpin.visualizerType = visual;
 
   if (canvas) {
     Bumpin.canvas = canvas;
+    Bumpin.ctx = canvas.getContext("2d");
   } else {
-    Bumpin.drawVisualizer({ bufferLength, dataArray });
+    Bumpin.drawVisualizer({ dataArray });
   }
 };
