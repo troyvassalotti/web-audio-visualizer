@@ -18,7 +18,10 @@ export default class BumpinThat extends LitElement {
     this.analyzer = null;
     this.bufferLength = null;
     this.dataArray = null;
-    this.visual = "standard";
+
+    this.visualizerType = "standard";
+    this.randomizeColors = false;
+    this.fftSize;
   }
 
   static tagName = "bumpin-that";
@@ -32,8 +35,21 @@ export default class BumpinThat extends LitElement {
   static properties = {
     /** URL for the audio source. */
     src: { type: String },
-    /** @type {'split' | 'standard'} */
-    visual: { type: String },
+    /**
+     * @attribute visualizertype
+     * @type {'split' | 'standard'} */
+    visualizerType: { type: String },
+    /**
+     * @attribute randomizecolors
+     * @type {boolean}
+     */
+    randomizeColors: { type: Boolean },
+    /**
+     * fftSize property of the audio AnalyzerNode.
+     * @type {number}
+     * @link https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
+     */
+    fftSize: { type: Number },
   };
 
   static styles = css`
@@ -52,7 +68,8 @@ export default class BumpinThat extends LitElement {
     }
 
     canvas {
-      block-size: 100dvh;
+      block-size: 100%;
+      display: block;
       inline-size: 100%;
       inset: 0;
       pointer-events: none;
@@ -80,35 +97,80 @@ export default class BumpinThat extends LitElement {
     return window.innerHeight;
   }
 
+  static resetBodyClass() {
+    document.body.classList.remove("is-bumpin-that-beat");
+  }
+
+  static resetGradientIfStopped(dataArray) {
+    const uniqueDataPoints = new Set(dataArray);
+
+    if (uniqueDataPoints.size === 1 && uniqueDataPoints.has(0)) {
+      this.resetBodyClass();
+      return true;
+    }
+
+    return false;
+  }
+
+  static createStylesheet() {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(`
+      .is-bumpin-that-beat {
+        background-image: var(--bumpin-that-background) !important;
+      }
+    `);
+
+    document.adoptedStyleSheets.push(sheet);
+  }
+
+  static applyGradientStyles(gradients) {
+    document.body.classList.add("is-bumpin-that-beat");
+    document.body.style.setProperty(
+      "--bumpin-that-background",
+      `radial-gradient(circle at top right, ${gradients.join(",")})`,
+    );
+  }
+
   drawGradient({ bufferLength, dataArray }) {
+    const isAtRest = BumpinThat.resetGradientIfStopped(dataArray);
+    if (isAtRest) return;
+
     const iterator = iteratinator(bufferLength);
     let gradients = [];
 
     iterator.forEach((_number, i) => {
       let barHeight = dataArray[i];
-      let fill = makeRGB(i, barHeight);
+      let fill = makeRGB(i, barHeight, this.randomizeColors);
       gradients.push(fill);
     });
 
-    document.body.style.setProperty(
-      "background-image",
-      `radial-gradient(circle at top right, ${gradients.join(",")})`,
-    );
+    BumpinThat.applyGradientStyles(gradients);
   }
 
-  init() {
+  setupWorker() {
     const canvas = this.canvas.transferControlToOffscreen();
-
     this.worker.postMessage({ canvas }, [canvas]);
+  }
+
+  setupAudioContext() {
     this.audioSource = this.audioCtx.createMediaElementSource(this.audio);
     this.analyzer = this.audioCtx.createAnalyser();
     this.audioSource.connect(this.analyzer);
     this.analyzer.connect(this.audioCtx.destination);
-    // Not setting this to 128 makes the RGB calculations off.
-    // Need to redo math for how to properly get red, green, and blue if we want 1024.
-    this.analyzer.fftSize = 128;
+    if (this.fftSize) this.analyzer.fftSize = this.fftSize;
     this.bufferLength = this.analyzer.frequencyBinCount;
     this.dataArray = new Uint8Array(this.bufferLength);
+  }
+
+  setupAudioPlayer() {
+    this.audio?.addEventListener("play", this.handleAudioPlay);
+  }
+
+  init() {
+    this.setupWorker();
+    this.setupAudioContext();
+    this.setupAudioPlayer();
+    BumpinThat.createStylesheet();
   }
 
   visualize = () => {
@@ -117,7 +179,7 @@ export default class BumpinThat extends LitElement {
       {
         bufferLength: this.bufferLength,
         dataArray: this.dataArray,
-        visual: this.visual,
+        visualizerType: this.visualizerType,
       },
       {},
     );
@@ -130,7 +192,6 @@ export default class BumpinThat extends LitElement {
       bufferLength: this.bufferLength,
       dataArray: this.dataArray,
     });
-    // TODO: need to keep state of play or pause and use that here to clean up when paused
     window.requestAnimationFrame(this.lightShow);
   };
 
@@ -139,18 +200,8 @@ export default class BumpinThat extends LitElement {
     this.lightShow();
   };
 
-  handleAudioPause = () => {
-    document.body.style.background = "none";
-  };
-
   firstUpdated() {
     this.init();
-    this.audio?.addEventListener("play", this.handleAudioPlay);
-    this.audio?.addEventListener("pause", this.handleAudioPause);
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
   }
 
   disconnectedCallback() {

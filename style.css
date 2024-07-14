@@ -9,5 +9,6 @@ html {
 }
 
 body {
+  background: #279af1;
   min-block-size: 100dvh;
 }

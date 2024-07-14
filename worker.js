@@ -48,11 +48,28 @@ class BumpinThatController {
     );
   }
 
-  clear() {
+  clear = () => {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  };
+
+  static resetVisualizerIfStopped(dataArray, callback) {
+    const uniqueDataPoints = new Set(dataArray);
+
+    if (uniqueDataPoints.size === 1 && uniqueDataPoints.has(0)) {
+      callback();
+      return true;
+    }
+
+    return false;
   }
 
   drawVisualizer({ dataArray }) {
+    const isAtRest = BumpinThatController.resetVisualizerIfStopped(
+      dataArray,
+      this.clear,
+    );
+    if (isAtRest) return;
+
     const ctx = this.ctx;
     const barWidth = this.barWidth;
     const bufferLength = this.bufferLength;
@@ -98,10 +115,10 @@ class BumpinThatController {
 const Bumpin = new BumpinThatController();
 
 onmessage = function (e) {
-  const { bufferLength, dataArray, canvas, visual } = e.data;
+  const { bufferLength, dataArray, canvas, visualizerType } = e.data;
 
   Bumpin.bufferLength = bufferLength;
-  Bumpin.visualizerType = visual;
+  Bumpin.visualizerType = visualizerType;
 
   if (canvas) {
     Bumpin.canvas = canvas;
