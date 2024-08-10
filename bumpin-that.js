@@ -4,8 +4,6 @@
  */
 
 import { html, css, LitElement } from "https://esm.sh/lit";
-import makeRGB from "./lib/makeRGB.js";
-import iteratinator from "./lib/iterators.js";
 
 export default class BumpinThat extends LitElement {
   constructor() {
@@ -20,7 +18,6 @@ export default class BumpinThat extends LitElement {
     this.dataArray = null;
 
     this.visualizerType = "standard";
-    this.randomizeColors = false;
     this.fftSize;
   }
 
@@ -39,11 +36,6 @@ export default class BumpinThat extends LitElement {
      * @attribute visualizertype
      * @type {'split' | 'standard'} */
     visualizerType: { type: String },
-    /**
-     * @attribute randomizecolors
-     * @type {boolean}
-     */
-    randomizeColors: { type: Boolean },
     /**
      * fftSize property of the audio AnalyzerNode.
      * @type {number}
@@ -97,56 +89,6 @@ export default class BumpinThat extends LitElement {
     return window.innerHeight;
   }
 
-  static resetBodyClass() {
-    document.body.classList.remove("is-bumpin-that-beat");
-  }
-
-  static resetGradientIfStopped(dataArray) {
-    const uniqueDataPoints = new Set(dataArray);
-
-    if (uniqueDataPoints.size === 1 && uniqueDataPoints.has(0)) {
-      this.resetBodyClass();
-      return true;
-    }
-
-    return false;
-  }
-
-  static createStylesheet() {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(`
-      .is-bumpin-that-beat {
-        background-image: var(--bumpin-that-background) !important;
-      }
-    `);
-
-    document.adoptedStyleSheets.push(sheet);
-  }
-
-  static applyGradientStyles(gradients) {
-    document.body.classList.add("is-bumpin-that-beat");
-    document.body.style.setProperty(
-      "--bumpin-that-background",
-      `radial-gradient(circle at top right, ${gradients.join(",")})`,
-    );
-  }
-
-  drawGradient({ bufferLength, dataArray }) {
-    const isAtRest = BumpinThat.resetGradientIfStopped(dataArray);
-    if (isAtRest) return;
-
-    const iterator = iteratinator(bufferLength);
-    let gradients = [];
-
-    iterator.forEach((_number, i) => {
-      let barHeight = dataArray[i];
-      let fill = makeRGB(i, barHeight, this.randomizeColors);
-      gradients.push(fill);
-    });
-
-    BumpinThat.applyGradientStyles(gradients);
-  }
-
   setupWorker() {
     const canvas = this.canvas.transferControlToOffscreen();
     this.worker.postMessage({ canvas }, [canvas]);
@@ -170,7 +112,6 @@ export default class BumpinThat extends LitElement {
     this.setupWorker();
     this.setupAudioContext();
     this.setupAudioPlayer();
-    BumpinThat.createStylesheet();
   }
 
   visualize = () => {
@@ -186,18 +127,8 @@ export default class BumpinThat extends LitElement {
     window.requestAnimationFrame(this.visualize);
   };
 
-  lightShow = () => {
-    this.analyzer.getByteFrequencyData(this.dataArray);
-    this.drawGradient({
-      bufferLength: this.bufferLength,
-      dataArray: this.dataArray,
-    });
-    window.requestAnimationFrame(this.lightShow);
-  };
-
   handleAudioPlay = () => {
     this.visualize();
-    this.lightShow();
   };
 
   firstUpdated() {
